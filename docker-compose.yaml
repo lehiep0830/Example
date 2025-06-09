@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database service using the latest stable version
+  postgres:
+    image: postgres:16
+    platform: linux/amd64
+    container_name: spaceryder_postgres
+    environment:
+      # Environment variables for PostgreSQL configuration
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: test12345
+      POSTGRES_DB: spaceryder
+    ports:
+      # Map port 5432 on host to 5432 in container
+      - "5432:5432"
+    volumes:
+      # Persist PostgreSQL data using a named volume, compatible with Windows and Linux
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      # Connect to a custom network for service communication
+      - spaceryder_network
+    healthcheck:
+      # Check if PostgreSQL is ready
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # NestJS application service
+  app:
+    build:
+      # Build context is the current directory, works on both Windows and Linux
+      context: .
+      # Use the Dockerfile in the current directory
+      dockerfile: Dockerfile
+      # Specify platform for building the NestJS app
+      target: production
+    platform: linux/amd64
+    container_name: spaceryder_app
+    environment:
+      # Environment variables for NestJS app
+      - NODE_ENV=production
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=test12345
+      - DATABASE_NAME=spaceryder
+    ports:
+      # Map port 3000 on host to 3000 in container
+      - "3000:3000"
+    depends_on:
+      # Ensure Postgres starts before the app
+      - postgres
+    networks:
+      # Connect to the same network as Postgres
+      - spaceryder_network
+    restart: unless-stopped
+    # Mount the current directory to /app in the container for development
+    # Using relative path for cross-platform compatibility
+    volumes:
+      - ./:/app
+      - /app/node_modules
+
+# Define persistent volume for PostgreSQL data
+volumes:
+  postgres_data:
+    name: spaceryder_postgres_data
+
+# Define network for communication between services
+networks:
+  spaceryder_network:
+    driver: bridge
